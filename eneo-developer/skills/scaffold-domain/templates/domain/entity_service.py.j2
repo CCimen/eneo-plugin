@@ -1,0 +1,189 @@
+"""{{ domain_class }} service layer"""
+
+from uuid import UUID, uuid4
+from datetime import datetime, timezone
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from ..domain.{{ domain_name }} import {{ domain_class }}
+from ..domain.{{ domain_name }}_repo import {{ domain_class }}Repository
+{% if space_scoped %}
+from intric.spaces.application.space_service import SpaceService
+from intric.spaces.domain.space_permission import SpacePermissionType
+{% endif %}
+from intric.users.domain.user import User
+
+
+class {{ domain_class }}Service:
+    """Service layer for {{ domain_class }} with business logic"""
+
+    def __init__(
+        self,
+        {{ domain_name }}_repo: {{ domain_class }}Repository,
+        {% if space_scoped %}space_service: SpaceService,{% endif %}
+    ):
+        self.{{ domain_name }}_repo = {{ domain_name }}_repo
+        {% if space_scoped %}self.space_service = space_service{% endif %}
+
+    async def get_{{ domain_name }}(
+        self,
+        {{ domain_name }}_id: UUID,
+        {% if tenant_scoped %}tenant_id: UUID,{% endif %}
+        {% if space_scoped %}user: User,{% endif %}
+        db: AsyncSession
+    ) -> {{ domain_class }} | None:
+        """Get {{ domain_name }} by ID{% if space_scoped %} with permission check{% endif %}"""
+        {{ domain_name }} = await self.{{ domain_name }}_repo.get_by_id(
+            {{ domain_name }}_id,
+            {% if tenant_scoped %}tenant_id,{% endif %}
+            db
+        )
+
+        {% if space_scoped %}
+        if {{ domain_name }} and {{ domain_name }}.space_id:
+            # Validate Space permission
+            await self.space_service.validate_permission(
+                tenant_id,
+                {{ domain_name }}.space_id,
+                user.id,
+                SpacePermissionType.READ,
+                db
+            )
+        {% endif %}
+
+        return {{ domain_name }}
+
+    async def list_{{ domain_name }}s(
+        self,
+        {% if tenant_scoped %}tenant_id: UUID,{% endif %}
+        {% if space_scoped %}space_id: UUID | None,
+        user: User,{% endif %}
+        db: AsyncSession,
+        limit: int = 100,
+        offset: int = 0
+    ) -> list[{{ domain_class }}]:
+        """List {{ domain_name }}s{% if space_scoped %} with Space permission{% endif %}"""
+        {% if space_scoped %}
+        if space_id:
+            # Validate Space permission
+            await self.space_service.validate_permission(
+                tenant_id,
+                space_id,
+                user.id,
+                SpacePermissionType.READ,
+                db
+            )
+        {% endif %}
+
+        return await self.{{ domain_name }}_repo.get_all(
+            {% if tenant_scoped %}tenant_id,{% endif %}
+            {% if space_scoped %}space_id,{% endif %}
+            db,
+            limit,
+            offset
+        )
+
+    async def create_{{ domain_name }}(
+        self,
+        {% if tenant_scoped %}tenant_id: UUID,{% endif %}
+        {% if space_scoped %}space_id: UUID | None,
+        user: User,{% endif %}
+        # TODO: Add your create parameters here
+        db: AsyncSession
+    ) -> {{ domain_class }}:
+        """Create new {{ domain_name }}{% if space_scoped %} with permission check{% endif %}"""
+        {% if space_scoped %}
+        if space_id:
+            # Validate Space permission
+            await self.space_service.validate_permission(
+                tenant_id,
+                space_id,
+                user.id,
+                SpacePermissionType.EDIT,
+                db
+            )
+        {% endif %}
+
+        # Create entity
+        {{ domain_name }} = {{ domain_class }}(
+            id=uuid4(),
+            {% if tenant_scoped %}tenant_id=tenant_id,{% endif %}
+            {% if space_scoped %}space_id=space_id,{% endif %}
+            # TODO: Add your fields here
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
+        )
+
+        return await self.{{ domain_name }}_repo.create({{ domain_name }}, db)
+
+    async def update_{{ domain_name }}(
+        self,
+        {{ domain_name }}_id: UUID,
+        {% if tenant_scoped %}tenant_id: UUID,{% endif %}
+        {% if space_scoped %}user: User,{% endif %}
+        # TODO: Add your update parameters here
+        db: AsyncSession
+    ) -> {{ domain_class }}:
+        """Update {{ domain_name }}{% if space_scoped %} with permission check{% endif %}"""
+        # Get existing {{ domain_name }}
+        {{ domain_name }} = await self.get_{{ domain_name }}(
+            {{ domain_name }}_id,
+            {% if tenant_scoped %}tenant_id,{% endif %}
+            {% if space_scoped %}user,{% endif %}
+            db
+        )
+        if not {{ domain_name }}:
+            raise ValueError(f"{{ domain_class }} {{{ domain_name }}_id} not found")
+
+        {% if space_scoped %}
+        if {{ domain_name }}.space_id:
+            # Validate Space permission
+            await self.space_service.validate_permission(
+                tenant_id,
+                {{ domain_name }}.space_id,
+                user.id,
+                SpacePermissionType.EDIT,
+                db
+            )
+        {% endif %}
+
+        # Update fields
+        # TODO: Update your fields here
+        {{ domain_name }}.updated_at = datetime.now(timezone.utc)
+
+        return await self.{{ domain_name }}_repo.update({{ domain_name }}, db)
+
+    async def delete_{{ domain_name }}(
+        self,
+        {{ domain_name }}_id: UUID,
+        {% if tenant_scoped %}tenant_id: UUID,{% endif %}
+        {% if space_scoped %}user: User,{% endif %}
+        db: AsyncSession
+    ) -> None:
+        """Soft delete {{ domain_name }}{% if space_scoped %} with permission check{% endif %}"""
+        # Get existing {{ domain_name }}
+        {{ domain_name }} = await self.get_{{ domain_name }}(
+            {{ domain_name }}_id,
+            {% if tenant_scoped %}tenant_id,{% endif %}
+            {% if space_scoped %}user,{% endif %}
+            db
+        )
+        if not {{ domain_name }}:
+            raise ValueError(f"{{ domain_class }} {{{ domain_name }}_id} not found")
+
+        {% if space_scoped %}
+        if {{ domain_name }}.space_id:
+            # Validate Space permission
+            await self.space_service.validate_permission(
+                tenant_id,
+                {{ domain_name }}.space_id,
+                user.id,
+                SpacePermissionType.DELETE,
+                db
+            )
+        {% endif %}
+
+        await self.{{ domain_name }}_repo.delete(
+            {{ domain_name }}_id,
+            {% if tenant_scoped %}tenant_id,{% endif %}
+            db
+        )

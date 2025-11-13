@@ -1,0 +1,51 @@
+"""{{ domain_class }} domain entity"""
+
+from dataclasses import dataclass
+from datetime import datetime
+from uuid import UUID
+
+
+@dataclass
+class {{ domain_class }}:
+    """{{ domain_class }} entity
+
+    Multi-tenant entity{% if space_scoped %} scoped to Spaces{% endif %}.
+    """
+
+    id: UUID
+    {% if tenant_scoped %}tenant_id: UUID{% endif %}
+    {% if space_scoped %}space_id: UUID | None{% endif %}
+
+    # TODO: Add your domain fields here
+    # Example fields:
+    # name: str
+    # description: str | None
+    # is_active: bool
+
+    {% if relationships %}
+    # Relationships
+    {% for rel in relationships %}
+    {{ rel.field }}: UUID
+    {% endfor %}
+    {% endif %}
+
+    # Audit fields
+    created_at: datetime
+    updated_at: datetime
+    deleted_at: datetime | None = None
+
+    def is_deleted(self) -> bool:
+        """Check if entity is soft deleted"""
+        return self.deleted_at is not None
+
+    {% if space_scoped %}
+    def is_space_scoped(self) -> bool:
+        """Check if entity is scoped to a Space"""
+        return self.space_id is not None
+    {% endif %}
+
+    # TODO: Add your domain methods here
+    # Example:
+    # def can_be_edited_by(self, user_id: UUID) -> bool:
+    #     """Check if user can edit this {{ domain_name }}"""
+    #     return True  # Implement your logic

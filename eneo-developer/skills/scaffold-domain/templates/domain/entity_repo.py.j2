@@ -1,0 +1,61 @@
+"""{{ domain_class }} repository interface"""
+
+from abc import ABC, abstractmethod
+from uuid import UUID
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from .{{ domain_name }} import {{ domain_class }}
+
+
+class {{ domain_class }}Repository(ABC):
+    """Repository interface for {{ domain_class }}"""
+
+    @abstractmethod
+    async def get_by_id(
+        self,
+        {{ domain_name }}_id: UUID,
+        {% if tenant_scoped %}tenant_id: UUID,{% endif %}
+        db: AsyncSession
+    ) -> {{ domain_class }} | None:
+        """Get {{ domain_name }} by ID"""
+        pass
+
+    @abstractmethod
+    async def get_all(
+        self,
+        {% if tenant_scoped %}tenant_id: UUID,{% endif %}
+        {% if space_scoped %}space_id: UUID | None,{% endif %}
+        db: AsyncSession,
+        limit: int = 100,
+        offset: int = 0
+    ) -> list[{{ domain_class }}]:
+        """Get all {{ domain_name }}s"""
+        pass
+
+    @abstractmethod
+    async def create(
+        self,
+        {{ domain_name }}: {{ domain_class }},
+        db: AsyncSession
+    ) -> {{ domain_class }}:
+        """Create new {{ domain_name }}"""
+        pass
+
+    @abstractmethod
+    async def update(
+        self,
+        {{ domain_name }}: {{ domain_class }},
+        db: AsyncSession
+    ) -> {{ domain_class }}:
+        """Update {{ domain_name }}"""
+        pass
+
+    @abstractmethod
+    async def delete(
+        self,
+        {{ domain_name }}_id: UUID,
+        {% if tenant_scoped %}tenant_id: UUID,{% endif %}
+        db: AsyncSession
+    ) -> None:
+        """Soft delete {{ domain_name }}"""
+        pass

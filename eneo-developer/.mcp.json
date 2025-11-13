@@ -1,0 +1,17 @@
+{
+  "mcpServers": {
+    "svelte": {
+      "url": "https://mcp.svelte.dev/mcp",
+      "transport": "http",
+      "disabled": false,
+      "description": "Svelte MCP server for documentation and code validation (required by eneo-frontend-svelte-expert)"
+    },
+    "sequential-thinking": {
+      "command": "bunx",
+      "args": ["-y", "@modelcontextprotocol/server-sequential-thinking"],
+      "transport": "stdio",
+      "disabled": false,
+      "description": "Sequential thinking capabilities for complex reasoning (enhances all agents)"
+    }
+  }
+}

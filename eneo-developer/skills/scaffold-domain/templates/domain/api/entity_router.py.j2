@@ -1,0 +1,110 @@
+"""{{ domain_class }} API router"""
+
+from uuid import UUID
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from intric.server.dependencies import get_db{% if tenant_scoped %}, get_tenant_id{% endif %}{% if space_scoped %}, get_current_user{% endif %}
+{% if tenant_scoped %}from intric.users.domain.user import User{% endif %}
+
+from ..application.{{ domain_name }}_service import {{ domain_class }}Service
+from .{{ domain_name }}_models import {{ domain_class }}Public, Create{{ domain_class }}, Update{{ domain_class }}
+from .{{ domain_name }}_assembler import {{ domain_class }}Assembler
+
+router = APIRouter(prefix="/{{ domain_name }}s", tags=["{{ domain_name }}s"])
+
+
+@router.get("/", response_model=list[{{ domain_class }}Public])
+async def list_{{ domain_name }}s(
+    {% if tenant_scoped %}tenant_id: UUID = Depends(get_tenant_id),{% endif %}
+    {% if space_scoped %}space_id: UUID | None = None,
+    user: User = Depends(get_current_user),{% endif %}
+    limit: int = 100,
+    offset: int = 0,
+    db: AsyncSession = Depends(get_db),
+    {{ domain_name }}_service: {{ domain_class }}Service = Depends()
+):
+    """List all {{ domain_name }}s{% if space_scoped %} in Space{% endif %}"""
+    {{ domain_name }}s = await {{ domain_name }}_service.list_{{ domain_name }}s(
+        {% if tenant_scoped %}tenant_id,{% endif %}
+        {% if space_scoped %}space_id,
+        user,{% endif %}
+        db,
+        limit,
+        offset
+    )
+    return [{{ domain_class }}Assembler.to_public({{ domain_name }}) for {{ domain_name }} in {{ domain_name }}s]
+
+
+@router.get("/{{'{'}}{{ domain_name }}_id{{'}'}}", response_model={{ domain_class }}Public)
+async def get_{{ domain_name }}(
+    {{ domain_name }}_id: UUID,
+    {% if tenant_scoped %}tenant_id: UUID = Depends(get_tenant_id),{% endif %}
+    {% if space_scoped %}user: User = Depends(get_current_user),{% endif %}
+    db: AsyncSession = Depends(get_db),
+    {{ domain_name }}_service: {{ domain_class }}Service = Depends()
+):
+    """Get {{ domain_name }} by ID"""
+    {{ domain_name }} = await {{ domain_name }}_service.get_{{ domain_name }}(
+        {{ domain_name }}_id,
+        {% if tenant_scoped %}tenant_id,{% endif %}
+        {% if space_scoped %}user,{% endif %}
+        db
+    )
+    if not {{ domain_name }}:
+        raise HTTPException(status_code=404, detail="{{ domain_class }} not found")
+    return {{ domain_class }}Assembler.to_public({{ domain_name }})
+
+
+@router.post("/", response_model={{ domain_class }}Public, status_code=201)
+async def create_{{ domain_name }}(
+    data: Create{{ domain_class }},
+    {% if tenant_scoped %}tenant_id: UUID = Depends(get_tenant_id),{% endif %}
+    {% if space_scoped %}user: User = Depends(get_current_user),{% endif %}
+    db: AsyncSession = Depends(get_db),
+    {{ domain_name }}_service: {{ domain_class }}Service = Depends()
+):
+    """Create new {{ domain_name }}"""
+    {{ domain_name }} = await {{ domain_name }}_service.create_{{ domain_name }}(
+        {% if tenant_scoped %}tenant_id,{% endif %}
+        {% if space_scoped %}data.space_id,
+        user,{% endif %}
+        db
+    )
+    return {{ domain_class }}Assembler.to_public({{ domain_name }})
+
+
+@router.patch("/{{'{'}}{{ domain_name }}_id{{'}'}}", response_model={{ domain_class }}Public)
+async def update_{{ domain_name }}(
+    {{ domain_name }}_id: UUID,
+    data: Update{{ domain_class }},
+    {% if tenant_scoped %}tenant_id: UUID = Depends(get_tenant_id),{% endif %}
+    {% if space_scoped %}user: User = Depends(get_current_user),{% endif %}
+    db: AsyncSession = Depends(get_db),
+    {{ domain_name }}_service: {{ domain_class }}Service = Depends()
+):
+    """Update {{ domain_name }}"""
+    {{ domain_name }} = await {{ domain_name }}_service.update_{{ domain_name }}(
+        {{ domain_name }}_id,
+        {% if tenant_scoped %}tenant_id,{% endif %}
+        {% if space_scoped %}user,{% endif %}
+        db
+    )
+    return {{ domain_class }}Assembler.to_public({{ domain_name }})
+
+
+@router.delete("/{{'{'}}{{ domain_name }}_id{{'}'}}", status_code=204)
+async def delete_{{ domain_name }}(
+    {{ domain_name }}_id: UUID,
+    {% if tenant_scoped %}tenant_id: UUID = Depends(get_tenant_id),{% endif %}
+    {% if space_scoped %}user: User = Depends(get_current_user),{% endif %}
+    db: AsyncSession = Depends(get_db),
+    {{ domain_name }}_service: {{ domain_class }}Service = Depends()
+):
+    """Delete {{ domain_name }}"""
+    await {{ domain_name }}_service.delete_{{ domain_name }}(
+        {{ domain_name }}_id,
+        {% if tenant_scoped %}tenant_id,{% endif %}
+        {% if space_scoped %}user,{% endif %}
+        db
+    )

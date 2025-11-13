@@ -1,0 +1,44 @@
+"""{{ domain_class }} database table"""
+
+from sqlalchemy import Column, String, Boolean, DateTime, ForeignKey{% if tenant_scoped or space_scoped %}, Index{% endif %}
+from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import relationship
+from sqlalchemy.sql import func
+
+from intric.server.database import Base
+
+
+class {{ domain_class }}InDB(Base):
+    """{{ domain_class }} database model"""
+    __tablename__ = "{{ domain_name }}s"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
+    {% if tenant_scoped %}tenant_id = Column(UUID(as_uuid=True), ForeignKey("tenants.id"), nullable=False){% endif %}
+    {% if space_scoped %}space_id = Column(UUID(as_uuid=True), ForeignKey("spaces.id"), nullable=True){% endif %}
+
+    # TODO: Add your columns here
+    # Example:
+    # name = Column(String, nullable=False)
+    # description = Column(String, nullable=True)
+    # is_active = Column(Boolean, default=True)
+
+    {% if relationships %}
+    # Relationships
+    {% for rel in relationships %}
+    {{ rel.field }} = Column(UUID(as_uuid=True), ForeignKey("{{ rel.table }}.id"))
+    {% endfor %}
+    {% endif %}
+
+    # Audit columns
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+    deleted_at = Column(DateTime(timezone=True), nullable=True)
+
+    {% if tenant_scoped or space_scoped %}
+    # Indexes for multi-tenancy performance
+    __table_args__ = (
+        {% if tenant_scoped and space_scoped %}Index("ix_{{ domain_name }}s_tenant_space", "tenant_id", "space_id"),{% endif %}
+        {% if tenant_scoped %}Index("ix_{{ domain_name }}s_tenant", "tenant_id"),{% endif %}
+        {% if space_scoped %}Index("ix_{{ domain_name }}s_space", "space_id"),{% endif %}
+    )
+    {% endif %}

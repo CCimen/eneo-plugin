@@ -1,0 +1,128 @@
+"""{{ domain_class }} repository implementation"""
+
+from uuid import UUID
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
+
+from ..domain.{{ domain_name }} import {{ domain_class }}
+from ..domain.{{ domain_name }}_repo import {{ domain_class }}Repository
+from ..table.{{ domain_name }}_table import {{ domain_class }}InDB
+
+
+class {{ domain_class }}RepositoryImpl({{ domain_class }}Repository):
+    """SQLAlchemy implementation of {{ domain_class }}Repository"""
+
+    async def get_by_id(
+        self,
+        {{ domain_name }}_id: UUID,
+        {% if tenant_scoped %}tenant_id: UUID,{% endif %}
+        db: AsyncSession
+    ) -> {{ domain_class }} | None:
+        """Get {{ domain_name }} by ID{% if tenant_scoped %} with tenant isolation{% endif %}"""
+        result = await db.execute(
+            select({{ domain_class }}InDB)
+            .where({{ domain_class }}InDB.id == {{ domain_name }}_id)
+            {% if tenant_scoped %}.where({{ domain_class }}InDB.tenant_id == tenant_id){% endif %}
+            .where({{ domain_class }}InDB.deleted_at.is_(None))
+            {% if relationships %}.options(
+                {% for rel in relationships %}selectinload({{ domain_class }}InDB.{{ rel.field.replace('_id', '') }}){{ ',' if not loop.last else '' }}
+                {% endfor %}
+            ){% endif %}
+        )
+        db_entity = result.scalar_one_or_none()
+        return self._to_domain(db_entity) if db_entity else None
+
+    async def get_all(
+        self,
+        {% if tenant_scoped %}tenant_id: UUID,{% endif %}
+        {% if space_scoped %}space_id: UUID | None = None,{% endif %}
+        db: AsyncSession,
+        limit: int = 100,
+        offset: int = 0
+    ) -> list[{{ domain_class }}]:
+        """Get all {{ domain_name }}s{% if tenant_scoped %} for tenant{% endif %}{% if space_scoped %} and space{% endif %}"""
+        query = (
+            select({{ domain_class }}InDB)
+            {% if tenant_scoped %}.where({{ domain_class }}InDB.tenant_id == tenant_id){% endif %}
+            {% if space_scoped %}.where({{ domain_class }}InDB.space_id == space_id) if space_id else select({{ domain_class }}InDB){% endif %}
+            .where({{ domain_class }}InDB.deleted_at.is_(None))
+            {% if relationships %}.options(
+                {% for rel in relationships %}selectinload({{ domain_class }}InDB.{{ rel.field.replace('_id', '') }}){{ ',' if not loop.last else '' }}
+                {% endfor %}
+            ){% endif %}
+            .limit(limit)
+            .offset(offset)
+        )
+        result = await db.execute(query)
+        return [self._to_domain(db_entity) for db_entity in result.scalars().all()]
+
+    async def create(
+        self,
+        {{ domain_name }}: {{ domain_class }},
+        db: AsyncSession
+    ) -> {{ domain_class }}:
+        """Create new {{ domain_name }}"""
+        db_entity = {{ domain_class }}InDB(
+            id={{ domain_name }}.id,
+            {% if tenant_scoped %}tenant_id={{ domain_name }}.tenant_id,{% endif %}
+            {% if space_scoped %}space_id={{ domain_name }}.space_id,{% endif %}
+            # TODO: Add your fields here
+            created_at={{ domain_name }}.created_at,
+            updated_at={{ domain_name }}.updated_at,
+        )
+        db.add(db_entity)
+        await db.flush()
+        await db.refresh(db_entity)
+        return self._to_domain(db_entity)
+
+    async def update(
+        self,
+        {{ domain_name }}: {{ domain_class }},
+        db: AsyncSession
+    ) -> {{ domain_class }}:
+        """Update existing {{ domain_name }}"""
+        result = await db.execute(
+            select({{ domain_class }}InDB)
+            .where({{ domain_class }}InDB.id == {{ domain_name }}.id)
+            {% if tenant_scoped %}.where({{ domain_class }}InDB.tenant_id == {{ domain_name }}.tenant_id){% endif %}
+        )
+        db_entity = result.scalar_one()
+
+        # Update fields
+        # TODO: Update your fields here
+        db_entity.updated_at = {{ domain_name }}.updated_at
+
+        await db.flush()
+        await db.refresh(db_entity)
+        return self._to_domain(db_entity)
+
+    async def delete(
+        self,
+        {{ domain_name }}_id: UUID,
+        {% if tenant_scoped %}tenant_id: UUID,{% endif %}
+        db: AsyncSession
+    ) -> None:
+        """Soft delete {{ domain_name }}"""
+        from datetime import datetime, timezone
+
+        result = await db.execute(
+            select({{ domain_class }}InDB)
+            .where({{ domain_class }}InDB.id == {{ domain_name }}_id)
+            {% if tenant_scoped %}.where({{ domain_class }}InDB.tenant_id == tenant_id){% endif %}
+        )
+        db_entity = result.scalar_one()
+        db_entity.deleted_at = datetime.now(timezone.utc)
+        await db.flush()
+
+    def _to_domain(self, db_entity: {{ domain_class }}InDB) -> {{ domain_class }}:
+        """Convert database model to domain entity"""
+        return {{ domain_class }}(
+            id=db_entity.id,
+            {% if tenant_scoped %}tenant_id=db_entity.tenant_id,{% endif %}
+            {% if space_scoped %}space_id=db_entity.space_id,{% endif %}
+            # TODO: Map your fields here
+            created_at=db_entity.created_at,
+            updated_at=db_entity.updated_at,
+            deleted_at=db_entity.deleted_at,
+        )

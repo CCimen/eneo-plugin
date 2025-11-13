@@ -1,0 +1,20 @@
+"""{{ domain_class }} assembler - Domain <-> API transformation"""
+
+from ..domain.{{ domain_name }} import {{ domain_class }}
+from .{{ domain_name }}_models import {{ domain_class }}Public
+
+
+class {{ domain_class }}Assembler:
+    """Transforms {{ domain_class }} between domain and API layers"""
+
+    @staticmethod
+    def to_public({{ domain_name }}: {{ domain_class }}) -> {{ domain_class }}Public:
+        """Convert domain entity to public API model"""
+        return {{ domain_class }}Public(
+            id={{ domain_name }}.id,
+            {% if tenant_scoped %}tenant_id={{ domain_name }}.tenant_id,{% endif %}
+            {% if space_scoped %}space_id={{ domain_name }}.space_id,{% endif %}
+            # TODO: Map your fields here
+            created_at={{ domain_name }}.created_at,
+            updated_at={{ domain_name }}.updated_at,
+        )

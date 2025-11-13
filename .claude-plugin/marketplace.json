@@ -1,0 +1,13 @@
+{
+  "name": "eneo-dev-marketplace",
+  "owner": {
+    "name": "Eneo Core Team"
+  },
+  "plugins": [
+    {
+      "name": "eneo-developer",
+      "source": "./eneo-developer",
+      "description": "Specialized agents and automation Skills for Eneo AI platform development"
+    }
+  ]
+}

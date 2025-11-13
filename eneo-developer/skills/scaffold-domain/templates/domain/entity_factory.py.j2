@@ -1,0 +1,42 @@
+"""{{ domain_class }} factory"""
+
+from uuid import UUID, uuid4
+from datetime import datetime, timezone
+
+from .domain.{{ domain_name }} import {{ domain_class }}
+
+
+class {{ domain_class }}Factory:
+    """Factory for creating {{ domain_class }} instances"""
+
+    @staticmethod
+    def create(
+        {% if tenant_scoped %}tenant_id: UUID,{% endif %}
+        {% if space_scoped %}space_id: UUID | None = None,{% endif %}
+        # TODO: Add your parameters here
+        **kwargs
+    ) -> {{ domain_class }}:
+        """Create a new {{ domain_class }} instance"""
+        return {{ domain_class }}(
+            id=kwargs.get("id", uuid4()),
+            {% if tenant_scoped %}tenant_id=tenant_id,{% endif %}
+            {% if space_scoped %}space_id=space_id,{% endif %}
+            # TODO: Add your fields here
+            created_at=kwargs.get("created_at", datetime.now(timezone.utc)),
+            updated_at=kwargs.get("updated_at", datetime.now(timezone.utc)),
+            deleted_at=None,
+        )
+
+    @staticmethod
+    def create_for_testing(
+        {% if tenant_scoped %}tenant_id: UUID | None = None,{% endif %}
+        {% if space_scoped %}space_id: UUID | None = None,{% endif %}
+        **kwargs
+    ) -> {{ domain_class }}:
+        """Create {{ domain_class }} for testing with default values"""
+        return {{ domain_class }}Factory.create(
+            {% if tenant_scoped %}tenant_id=tenant_id or uuid4(),{% endif %}
+            {% if space_scoped %}space_id=space_id,{% endif %}
+            # TODO: Add test default values
+            **kwargs
+        )
