@@ -1,7 +1,7 @@
 {
   "name": "eneo-developer",
   "description": "5 specialized agents + 7 automation Skills for Eneo AI platform development with DDD, multi-tenancy, and Svelte 5 expertise",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "author": {
     "name": "Eneo Core Team"
   }
