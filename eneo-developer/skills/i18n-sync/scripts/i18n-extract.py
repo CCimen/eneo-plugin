@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 i18n-extract.py - Extract and analyze Paraglide translation key usage
 
@@ -10,6 +11,7 @@ Scans Svelte files for translation key usage:
 """
 
 import json
+import os
 import re
 import sys
 from pathlib import Path
@@ -20,24 +22,84 @@ import click
 
 class Colors:
     """ANSI color codes for terminal output"""
-    RED = '\033[91m'
-    GREEN = '\033[92m'
-    YELLOW = '\033[93m'
-    BLUE = '\033[94m'
-    BOLD = '\033[1m'
-    END = '\033[0m'
+
+    RED = "\033[91m"
+    GREEN = "\033[92m"
+    YELLOW = "\033[93m"
+    BLUE = "\033[94m"
+    BOLD = "\033[1m"
+    END = "\033[0m"
+
+
+def find_workspace_root() -> Path:
+    """Auto-detect workspace root (/workspace for devcontainer or current dir)"""
+    # Check for /workspace (devcontainer)
+    if Path("/workspace").exists() and Path("/workspace/frontend").exists():
+        return Path("/workspace")
+    # Check for workspace env var
+    elif os.getenv("WORKSPACE_ROOT"):
+        return Path(os.getenv("WORKSPACE_ROOT"))
+    # Fall back to current directory
+    else:
+        return Path.cwd()
+
+
+def find_translation_files() -> Tuple[Path, Path]:
+    """Auto-locate sv.json and en.json"""
+    workspace = find_workspace_root()
+
+    # Try common locations
+    locations = [
+        workspace / "frontend/apps/web/messages",
+        workspace / "apps/web/messages",
+        workspace / "messages",
+    ]
+
+    for loc in locations:
+        sv_file = loc / "sv.json"
+        en_file = loc / "en.json"
+        if sv_file.exists() and en_file.exists():
+            return sv_file, en_file
+
+    # Fall back to defaults
+    return (
+        workspace / "frontend/apps/web/messages/sv.json",
+        workspace / "frontend/apps/web/messages/en.json",
+    )
+
+
+def find_svelte_src() -> Path:
+    """Auto-locate frontend source directory"""
+    workspace = find_workspace_root()
+
+    locations = [
+        workspace / "frontend/apps/web/src",
+        workspace / "apps/web/src",
+        workspace / "src",
+    ]
+
+    for loc in locations:
+        if loc.exists():
+            return loc
+
+    # Fall back
+    return workspace / "frontend/apps/web/src"
 
 
 def load_json(file_path: Path) -> Dict[str, str]:
     """Load JSON file with error handling"""
     try:
-        with open(file_path, 'r', encoding='utf-8') as f:
+        with open(file_path, "r", encoding="utf-8") as f:
             return json.load(f)
     except FileNotFoundError:
-        click.echo(f"{Colors.RED}L Error: File not found: {file_path}{Colors.END}", err=True)
+        click.echo(
+            f"{Colors.RED}Error: File not found: {file_path}{Colors.END}", err=True
+        )
         sys.exit(2)
     except json.JSONDecodeError as e:
-        click.echo(f"{Colors.RED}L JSON syntax error in {file_path}: {e}{Colors.END}", err=True)
+        click.echo(
+            f"{Colors.RED}JSON syntax error in {file_path}: {e}{Colors.END}", err=True
+        )
         sys.exit(2)
 
 
@@ -45,9 +107,12 @@ def find_svelte_files(scan_dir: Path) -> List[Path]:
     """Recursively find all .svelte files"""
     svelte_files = []
     try:
-        svelte_files = list(scan_dir.rglob('*.svelte'))
+        svelte_files = list(scan_dir.rglob("*.svelte"))
     except Exception as e:
-        click.echo(f"{Colors.RED}L Error scanning directory {scan_dir}: {e}{Colors.END}", err=True)
+        click.echo(
+            f"{Colors.RED}Error scanning directory {scan_dir}: {e}{Colors.END}",
+            err=True,
+        )
         sys.exit(2)
     return svelte_files
 
@@ -57,12 +122,12 @@ def extract_translation_keys(svelte_file: Path) -> Dict[str, List[int]]:
     keys_found = defaultdict(list)
 
     try:
-        content = svelte_file.read_text(encoding='utf-8')
-        lines = content.split('\n')
+        content = svelte_file.read_text(encoding="utf-8")
+        lines = content.split("\n")
 
         # Pattern to match: m.key_name or m.key_name(
         # Handles: m.key(), m.key({ param }), {m.key()}
-        pattern = re.compile(r'\bm\.([a-z][a-z0-9_]*)\b')
+        pattern = re.compile(r"\bm\.([a-z][a-z0-9_]*)\b")
 
         for line_num, line in enumerate(lines, start=1):
             matches = pattern.findall(line)
@@ -70,14 +135,20 @@ def extract_translation_keys(svelte_file: Path) -> Dict[str, List[int]]:
                 keys_found[key].append(line_num)
 
     except UnicodeDecodeError:
-        click.echo(f"{Colors.YELLOW}   Warning: Could not read {svelte_file} (encoding issue){Colors.END}")
+        click.echo(
+            f"{Colors.YELLOW}Warning: Could not read {svelte_file} (encoding issue){Colors.END}"
+        )
     except Exception as e:
-        click.echo(f"{Colors.YELLOW}   Warning: Error reading {svelte_file}: {e}{Colors.END}")
+        click.echo(
+            f"{Colors.YELLOW}Warning: Error reading {svelte_file}: {e}{Colors.END}"
+        )
 
     return keys_found
 
 
-def scan_all_svelte_files(scan_dir: Path) -> Tuple[Dict[str, Set[str]], Dict[str, Dict[str, List[int]]]]:
+def scan_all_svelte_files(
+    scan_dir: Path,
+) -> Tuple[Set[str], Dict[str, Dict[str, List[int]]]]:
     """
     Scan all Svelte files and extract translation keys
 
@@ -88,7 +159,7 @@ def scan_all_svelte_files(scan_dir: Path) -> Tuple[Dict[str, Set[str]], Dict[str
     svelte_files = find_svelte_files(scan_dir)
 
     if not svelte_files:
-        click.echo(f"{Colors.YELLOW}   No .svelte files found in {scan_dir}{Colors.END}")
+        click.echo(f"{Colors.YELLOW}No .svelte files found in {scan_dir}{Colors.END}")
         return set(), {}
 
     click.echo(f"{Colors.BLUE}Scanning {len(svelte_files)} Svelte files...{Colors.END}")
@@ -101,42 +172,70 @@ def scan_all_svelte_files(scan_dir: Path) -> Tuple[Dict[str, Set[str]], Dict[str
 
         for key, line_numbers in keys_in_file.items():
             used_keys.add(key)
-            key_locations[key][str(svelte_file.relative_to(Path.cwd()))] = line_numbers
+            try:
+                rel_path = svelte_file.relative_to(Path.cwd())
+            except ValueError:
+                rel_path = svelte_file
+            key_locations[key][str(rel_path)] = line_numbers
 
     return used_keys, key_locations
 
 
 @click.command()
-@click.option('--check', is_flag=True, help='Show usage statistics only')
-@click.option('--unused', is_flag=True, help='List unused translation keys')
-@click.option('--missing', is_flag=True, help='List keys used in code but not in JSON')
-@click.option('--full', is_flag=True, help='Full report (all checks)')
-@click.option('--scan', default='frontend/apps/web/src', help='Directory to scan for Svelte files')
-@click.option('--sv-file', default='frontend/apps/web/messages/sv.json', help='Path to Swedish file')
-@click.option('--en-file', default='frontend/apps/web/messages/en.json', help='Path to English file')
-@click.option('--limit', default=20, help='Limit number of results shown per category')
+@click.option("--check", is_flag=True, help="Show usage statistics only")
+@click.option("--unused", is_flag=True, help="List unused translation keys")
+@click.option("--missing", is_flag=True, help="List keys used in code but not in JSON")
+@click.option("--full", is_flag=True, help="Full report (all checks)")
+@click.option(
+    "--scan",
+    default=None,
+    help="Directory to scan for Svelte files (auto-detected if not provided)",
+)
+@click.option(
+    "--sv-file",
+    default=None,
+    help="Path to Swedish file (auto-detected if not provided)",
+)
+@click.option(
+    "--en-file",
+    default=None,
+    help="Path to English file (auto-detected if not provided)",
+)
+@click.option("--limit", default=20, help="Limit number of results shown per category")
 def main(check, unused, missing, full, scan, sv_file, en_file, limit):
     """Extract and analyze Paraglide translation key usage from Svelte files"""
 
-    # Resolve paths
-    scan_dir = Path(scan)
-    sv_path = Path(sv_file)
-    en_path = Path(en_file)
+    # Auto-detect paths if not provided
+    if not sv_file or not en_file:
+        auto_sv, auto_en = find_translation_files()
+        sv_path = Path(sv_file) if sv_file else auto_sv
+        en_path = Path(en_file) if en_file else auto_en
+    else:
+        sv_path = Path(sv_file)
+        en_path = Path(en_file)
+
+    # Auto-detect scan directory
+    scan_dir = Path(scan) if scan else find_svelte_src()
 
     # Validate scan directory
     if not scan_dir.exists():
-        click.echo(f"{Colors.RED}L Error: Scan directory does not exist: {scan_dir}{Colors.END}", err=True)
+        click.echo(
+            f"{Colors.RED}Error: Scan directory does not exist: {scan_dir}{Colors.END}",
+            err=True,
+        )
         sys.exit(2)
 
-    click.echo(f"{Colors.BLUE}{Colors.BOLD}= Extracting translation key usage...{Colors.END}\n")
+    click.echo(
+        f"{Colors.BLUE}{Colors.BOLD}Extracting translation key usage...{Colors.END}\n"
+    )
 
     # Load translation files
     sv_data = load_json(sv_path)
     en_data = load_json(en_path)
 
     # Get translation keys (excluding $schema)
-    sv_keys = set(k for k in sv_data.keys() if k != '$schema')
-    en_keys = set(k for k in en_data.keys() if k != '$schema')
+    sv_keys = set(k for k in sv_data.keys() if k != "$schema")
+    en_keys = set(k for k in en_data.keys() if k != "$schema")
     all_translation_keys = sv_keys | en_keys
 
     # Scan Svelte files
@@ -150,10 +249,14 @@ def main(check, unused, missing, full, scan, sv_file, en_file, limit):
     total_unused = len(unused_keys)
     total_missing = len(missing_keys)
 
-    usage_percentage = (total_used_keys / total_translation_keys * 100) if total_translation_keys > 0 else 0
+    usage_percentage = (
+        (total_used_keys / total_translation_keys * 100)
+        if total_translation_keys > 0
+        else 0
+    )
 
     # Always show basic statistics
-    click.echo(f"{Colors.BOLD}=Ê Usage Statistics:{Colors.END}")
+    click.echo(f"{Colors.BOLD}Usage Statistics:{Colors.END}")
     click.echo(f"  Total keys in translations: {total_translation_keys}")
     click.echo(f"  Keys used in code: {total_used_keys} ({usage_percentage:.1f}%)")
     click.echo(f"  Unused keys: {total_unused} ({100 - usage_percentage:.1f}%)")
@@ -164,7 +267,9 @@ def main(check, unused, missing, full, scan, sv_file, en_file, limit):
     # Report unused keys
     if unused or full:
         if unused_keys:
-            click.echo(f"\n{Colors.YELLOW}   Unused Keys ({len(unused_keys)} cleanup candidates):{Colors.END}")
+            click.echo(
+                f"\n{Colors.YELLOW}Unused Keys ({len(unused_keys)} cleanup candidates):{Colors.END}"
+            )
 
             # Sort by key name
             sorted_unused = sorted(unused_keys)
@@ -186,14 +291,20 @@ def main(check, unused, missing, full, scan, sv_file, en_file, limit):
 
             if len(unused_keys) > limit:
                 click.echo(f"   ... and {len(unused_keys) - limit} more")
-                click.echo(f"\n{Colors.BLUE}=¡ Tip: Use --limit to see more results{Colors.END}")
+                click.echo(
+                    f"\n{Colors.BLUE}Tip: Use --limit to see more results{Colors.END}"
+                )
         else:
-            click.echo(f"\n{Colors.GREEN} All translation keys are used in code!{Colors.END}")
+            click.echo(
+                f"\n{Colors.GREEN}All translation keys are used in code!{Colors.END}"
+            )
 
     # Report missing keys (used in code but not in translations)
     if missing or full:
         if missing_keys:
-            click.echo(f"\n{Colors.RED}L Missing Keys ({len(missing_keys)} used in code but not in JSON):{Colors.END}")
+            click.echo(
+                f"\n{Colors.RED}Missing Keys ({len(missing_keys)} used in code but not in JSON):{Colors.END}"
+            )
 
             sorted_missing = sorted(missing_keys)
 
@@ -214,24 +325,36 @@ def main(check, unused, missing, full, scan, sv_file, en_file, limit):
             if len(missing_keys) > limit:
                 click.echo(f"   ... and {len(missing_keys) - limit} more")
 
-            click.echo(f"\n{Colors.YELLOW}=¡ Action: Add these keys to sv.json and en.json{Colors.END}")
+            click.echo(
+                f"\n{Colors.YELLOW}Action: Add these keys to sv.json and en.json{Colors.END}"
+            )
         else:
-            click.echo(f"\n{Colors.GREEN} All used keys exist in translation files!{Colors.END}")
+            click.echo(
+                f"\n{Colors.GREEN}All used keys exist in translation files!{Colors.END}"
+            )
 
     # Summary
     if check or full:
         click.echo(f"\n{Colors.BOLD}Summary:{Colors.END}")
         if total_unused > 0:
-            click.echo(f"  {Colors.YELLOW}’{Colors.END} Consider removing {total_unused} unused keys to reduce file size")
+            click.echo(
+                f"  {Colors.YELLOW}Consider removing {total_unused} unused keys to reduce file size{Colors.END}"
+            )
         if total_missing > 0:
-            click.echo(f"  {Colors.RED}’{Colors.END} Add {total_missing} missing keys to prevent runtime errors")
+            click.echo(
+                f"  {Colors.RED}Add {total_missing} missing keys to prevent runtime errors{Colors.END}"
+            )
         if total_unused == 0 and total_missing == 0:
-            click.echo(f"  {Colors.GREEN}’{Colors.END} Translation files are perfectly synchronized with code!")
+            click.echo(
+                f"  {Colors.GREEN}Translation files are perfectly synchronized with code!{Colors.END}"
+            )
 
         # Calculate potential file size reduction
         if total_unused > 0:
-            reduction_percentage = (total_unused / total_translation_keys * 100)
-            click.echo(f"\n{Colors.BLUE}=¾ Potential file size reduction: ~{reduction_percentage:.1f}%{Colors.END}")
+            reduction_percentage = total_unused / total_translation_keys * 100
+            click.echo(
+                f"\n{Colors.BLUE}Potential file size reduction: ~{reduction_percentage:.1f}%{Colors.END}"
+            )
 
     # Exit code
     if total_missing > 0:
@@ -240,5 +363,5 @@ def main(check, unused, missing, full, scan, sv_file, en_file, limit):
         sys.exit(0)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

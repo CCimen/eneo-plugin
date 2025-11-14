@@ -13,7 +13,6 @@ Validates translation files for:
 """
 
 import json
-import os
 import re
 import sys
 import subprocess
@@ -25,56 +24,18 @@ import click
 
 class Colors:
     """ANSI color codes for terminal output"""
-
-    RED = "\033[91m"
-    GREEN = "\033[92m"
-    YELLOW = "\033[93m"
-    BLUE = "\033[94m"
-    BOLD = "\033[1m"
-    END = "\033[0m"
-
-
-def find_workspace_root() -> Path:
-    """Auto-detect workspace root (/workspace for devcontainer or current dir)"""
-    # Check for /workspace (devcontainer)
-    if Path("/workspace").exists() and Path("/workspace/frontend").exists():
-        return Path("/workspace")
-    # Check for workspace env var
-    elif os.getenv("WORKSPACE_ROOT"):
-        return Path(os.getenv("WORKSPACE_ROOT"))
-    # Fall back to current directory
-    else:
-        return Path.cwd()
-
-
-def find_translation_files() -> Tuple[Path, Path]:
-    """Auto-locate sv.json and en.json"""
-    workspace = find_workspace_root()
-
-    # Try common locations
-    locations = [
-        workspace / "frontend/apps/web/messages",
-        workspace / "apps/web/messages",
-        workspace / "messages",
-    ]
-
-    for loc in locations:
-        sv_file = loc / "sv.json"
-        en_file = loc / "en.json"
-        if sv_file.exists() and en_file.exists():
-            return sv_file, en_file
-
-    # Fall back to defaults
-    return (
-        workspace / "frontend/apps/web/messages/sv.json",
-        workspace / "frontend/apps/web/messages/en.json",
-    )
+    RED = '\033[91m'
+    GREEN = '\033[92m'
+    YELLOW = '\033[93m'
+    BLUE = '\033[94m'
+    BOLD = '\033[1m'
+    END = '\033[0m'
 
 
 def load_json(file_path: Path) -> Tuple[Dict[str, str], bool, str]:
     """Load JSON file with detailed error handling"""
     try:
-        with open(file_path, "r", encoding="utf-8") as f:
+        with open(file_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
         return data, True, ""
     except FileNotFoundError:
@@ -87,13 +48,13 @@ def load_json(file_path: Path) -> Tuple[Dict[str, str], bool, str]:
 
 def validate_snake_case(key: str) -> bool:
     """Validate snake_case convention"""
-    pattern = r"^[a-z][a-z0-9_]*$"
+    pattern = r'^[a-z][a-z0-9_]*$'
     return bool(re.match(pattern, key))
 
 
 def extract_parameters(value: str) -> Set[str]:
     """Extract parameter placeholders like {variable}"""
-    return set(re.findall(r"\{(\w+)\}", value))
+    return set(re.findall(r'\{(\w+)\}', value))
 
 
 def find_duplicate_keys(data: Dict[str, str]) -> List[str]:
@@ -108,17 +69,17 @@ def find_todo_placeholders(data: Dict[str, str]) -> List[Tuple[str, str]]:
     """Find TODO/FIXME placeholders in translations"""
     placeholders = []
     todo_patterns = [
-        r"\[TODO:?.*?\]",
-        r"\bTODO\b",
-        r"\bFIXME\b",
-        r"\[�VERS�TT\]",  # Swedish "translate"
-        r"\[�vers�tt\]",
+        r'\[TODO:?.*?\]',
+        r'\bTODO\b',
+        r'\bFIXME\b',
+        r'\[�VERS�TT\]',  # Swedish "translate"
+        r'\[�vers�tt\]',
     ]
 
-    combined_pattern = "|".join(f"({p})" for p in todo_patterns)
+    combined_pattern = '|'.join(f'({p})' for p in todo_patterns)
 
     for key, value in data.items():
-        if key == "$schema":
+        if key == '$schema':
             continue
         if re.search(combined_pattern, value, re.IGNORECASE):
             placeholders.append((key, value))
@@ -133,7 +94,7 @@ def find_duplicate_values(data: Dict[str, str]) -> Dict[str, List[str]]:
     value_to_keys = defaultdict(list)
 
     for key, value in data.items():
-        if key == "$schema":
+        if key == '$schema':
             continue
 
         # Skip empty values
@@ -145,7 +106,7 @@ def find_duplicate_values(data: Dict[str, str]) -> Dict[str, List[str]]:
             continue
 
         # Skip TODO placeholders (not real duplicates)
-        if "[TODO" in value or "TODO" in value:
+        if '[TODO' in value or 'TODO' in value:
             continue
 
         value_to_keys[value].append(key)
@@ -157,7 +118,8 @@ def find_duplicate_values(data: Dict[str, str]) -> Dict[str, List[str]]:
 
 
 def validate_parameter_consistency(
-    sv_data: Dict[str, str], en_data: Dict[str, str]
+    sv_data: Dict[str, str],
+    en_data: Dict[str, str]
 ) -> List[Tuple[str, Set[str], Set[str]]]:
     """Validate that parameters match across languages"""
     mismatches = []
@@ -165,7 +127,7 @@ def validate_parameter_consistency(
     common_keys = set(sv_data.keys()) & set(en_data.keys())
 
     for key in common_keys:
-        if key == "$schema":
+        if key == '$schema':
             continue
 
         sv_params = extract_parameters(sv_data[key])
@@ -179,18 +141,18 @@ def validate_parameter_consistency(
 
 def check_schema_declaration(data: Dict[str, str]) -> bool:
     """Check if $schema declaration is present"""
-    return "$schema" in data
+    return '$schema' in data
 
 
 def test_paraglide_compilation(frontend_dir: Path) -> Tuple[bool, str]:
     """Test if Paraglide compilation succeeds"""
     try:
         result = subprocess.run(
-            ["bun", "run", "i18n:compile"],
+            ['bun', 'run', 'i18n:compile'],
             cwd=frontend_dir,
             capture_output=True,
             text=True,
-            timeout=30,
+            timeout=30
         )
 
         if result.returncode == 0:
@@ -207,53 +169,26 @@ def test_paraglide_compilation(frontend_dir: Path) -> Tuple[bool, str]:
 
 
 @click.command()
-@click.option("--syntax", is_flag=True, help="Validate JSON syntax only")
-@click.option("--naming", is_flag=True, help="Validate naming conventions")
-@click.option("--params", is_flag=True, help="Validate parameter consistency")
-@click.option("--compile", is_flag=True, help="Test Paraglide compilation")
-@click.option(
-    "--full", is_flag=True, help="Run all validations (default)", default=True
-)
-@click.option(
-    "--sv-file",
-    default=None,
-    help="Path to Swedish file (auto-detected if not provided)",
-)
-@click.option(
-    "--en-file",
-    default=None,
-    help="Path to English file (auto-detected if not provided)",
-)
-@click.option(
-    "--frontend-dir",
-    default=None,
-    help="Frontend directory for compilation test (auto-detected if not provided)",
-)
+@click.option('--syntax', is_flag=True, help='Validate JSON syntax only')
+@click.option('--naming', is_flag=True, help='Validate naming conventions')
+@click.option('--params', is_flag=True, help='Validate parameter consistency')
+@click.option('--compile', is_flag=True, help='Test Paraglide compilation')
+@click.option('--full', is_flag=True, help='Run all validations (default)', default=True)
+@click.option('--sv-file', default='frontend/apps/web/messages/sv.json', help='Path to Swedish file')
+@click.option('--en-file', default='frontend/apps/web/messages/en.json', help='Path to English file')
+@click.option('--frontend-dir', default='frontend/apps/web', help='Frontend directory for compilation test')
 def main(syntax, naming, params, compile, full, sv_file, en_file, frontend_dir):
     """Comprehensive validation for Paraglide translation files"""
 
     # If no specific check is requested, run full validation
     run_all = full or not (syntax or naming or params or compile)
 
-    # Auto-detect paths if not provided
-    if not sv_file or not en_file:
-        auto_sv, auto_en = find_translation_files()
-        sv_path = Path(sv_file) if sv_file else auto_sv
-        en_path = Path(en_file) if en_file else auto_en
-    else:
-        sv_path = Path(sv_file)
-        en_path = Path(en_file)
+    # Resolve paths
+    sv_path = Path(sv_file)
+    en_path = Path(en_file)
+    frontend_path = Path(frontend_dir)
 
-    # Auto-detect frontend directory
-    if not frontend_dir:
-        workspace = find_workspace_root()
-        frontend_path = workspace / "frontend/apps/web"
-    else:
-        frontend_path = Path(frontend_dir)
-
-    click.echo(
-        f"{Colors.BLUE}{Colors.BOLD}🔍 Validating Paraglide translation files...{Colors.END}\n"
-    )
+    click.echo(f"{Colors.BLUE}{Colors.BOLD}= Validating Paraglide translation files...{Colors.END}\n")
 
     errors = []
     warnings = []
@@ -281,66 +216,42 @@ def main(syntax, naming, params, compile, full, sv_file, en_file, frontend_dir):
         # Check for schema declaration
         if sv_ok:
             if check_schema_declaration(sv_data):
-                click.echo(
-                    f"  {Colors.GREEN}{Colors.END} sv.json: $schema declaration present"
-                )
+                click.echo(f"  {Colors.GREEN}{Colors.END} sv.json: $schema declaration present")
             else:
                 warnings.append("sv.json: Missing $schema declaration")
-                click.echo(
-                    f"  {Colors.YELLOW}�{Colors.END} sv.json: Missing $schema declaration"
-                )
+                click.echo(f"  {Colors.YELLOW}�{Colors.END} sv.json: Missing $schema declaration")
 
         if en_ok:
             if check_schema_declaration(en_data):
-                click.echo(
-                    f"  {Colors.GREEN}{Colors.END} en.json: $schema declaration present"
-                )
+                click.echo(f"  {Colors.GREEN}{Colors.END} en.json: $schema declaration present")
             else:
                 warnings.append("en.json: Missing $schema declaration")
-                click.echo(
-                    f"  {Colors.YELLOW}�{Colors.END} en.json: Missing $schema declaration"
-                )
+                click.echo(f"  {Colors.YELLOW}�{Colors.END} en.json: Missing $schema declaration")
 
         print()
 
     if not (sv_ok and en_ok):
-        click.echo(
-            f"{Colors.RED}L Cannot continue validation due to syntax errors{Colors.END}"
-        )
+        click.echo(f"{Colors.RED}L Cannot continue validation due to syntax errors{Colors.END}")
         sys.exit(2)
 
     # Naming validation
     if run_all or naming:
         click.echo(f"{Colors.BOLD}2. Naming Convention Validation{Colors.END}")
 
-        sv_violations = [
-            (k, k)
-            for k in sv_data.keys()
-            if k != "$schema" and not validate_snake_case(k)
-        ]
-        en_violations = [
-            (k, k)
-            for k in en_data.keys()
-            if k != "$schema" and not validate_snake_case(k)
-        ]
+        sv_violations = [(k, k) for k in sv_data.keys() if k != '$schema' and not validate_snake_case(k)]
+        en_violations = [(k, k) for k in en_data.keys() if k != '$schema' and not validate_snake_case(k)]
 
         if not sv_violations and not en_violations:
-            click.echo(
-                f"  {Colors.GREEN}{Colors.END} All keys follow snake_case convention"
-            )
+            click.echo(f"  {Colors.GREEN}{Colors.END} All keys follow snake_case convention")
         else:
             if sv_violations:
-                click.echo(
-                    f"  {Colors.RED}{Colors.END} sv.json: {len(sv_violations)} naming violations"
-                )
+                click.echo(f"  {Colors.RED}{Colors.END} sv.json: {len(sv_violations)} naming violations")
                 for key, _ in sv_violations[:3]:
                     click.echo(f"     - {key}")
                     errors.append(f"sv.json: Invalid key name '{key}'")
 
             if en_violations:
-                click.echo(
-                    f"  {Colors.RED}{Colors.END} en.json: {len(en_violations)} naming violations"
-                )
+                click.echo(f"  {Colors.RED}{Colors.END} en.json: {len(en_violations)} naming violations")
                 for key, _ in en_violations[:3]:
                     click.echo(f"     - {key}")
                     errors.append(f"en.json: Invalid key name '{key}'")
@@ -358,19 +269,15 @@ def main(syntax, naming, params, compile, full, sv_file, en_file, frontend_dir):
             click.echo(f"  {Colors.GREEN}{Colors.END} No TODO/FIXME placeholders found")
         else:
             if sv_todos:
-                click.echo(
-                    f"  {Colors.YELLOW}�{Colors.END} sv.json: {len(sv_todos)} TODO placeholders"
-                )
+                click.echo(f"  {Colors.YELLOW}�{Colors.END} sv.json: {len(sv_todos)} TODO placeholders")
                 for key, value in sv_todos[:3]:
-                    click.echo(f'     - {key}: "{value}"')
+                    click.echo(f"     - {key}: \"{value}\"")
                     warnings.append(f"sv.json: TODO placeholder in '{key}'")
 
             if en_todos:
-                click.echo(
-                    f"  {Colors.YELLOW}�{Colors.END} en.json: {len(en_todos)} TODO placeholders"
-                )
+                click.echo(f"  {Colors.YELLOW}�{Colors.END} en.json: {len(en_todos)} TODO placeholders")
                 for key, value in en_todos[:3]:
-                    click.echo(f'     - {key}: "{value}"')
+                    click.echo(f"     - {key}: \"{value}\"")
                     warnings.append(f"en.json: TODO placeholder in '{key}'")
 
         print()
@@ -387,16 +294,10 @@ def main(syntax, naming, params, compile, full, sv_file, en_file, frontend_dir):
         else:
             if sv_duplicates:
                 total_duplicate_keys = sum(len(keys) for keys in sv_duplicates.values())
-                click.echo(
-                    f"  {Colors.YELLOW}⚠{Colors.END} sv.json: {len(sv_duplicates)} duplicate value groups ({total_duplicate_keys} keys)"
-                )
+                click.echo(f"  {Colors.YELLOW}⚠{Colors.END} sv.json: {len(sv_duplicates)} duplicate value groups ({total_duplicate_keys} keys)")
 
-                for value, keys in sorted(
-                    sv_duplicates.items(), key=lambda x: -len(x[1])
-                )[:3]:
-                    click.echo(
-                        f'     "{value[:50]}{"..." if len(value) > 50 else ""}" ({len(keys)} keys):'
-                    )
+                for value, keys in sorted(sv_duplicates.items(), key=lambda x: -len(x[1]))[:3]:
+                    click.echo(f"     \"{value[:50]}{'...' if len(value) > 50 else ''}\" ({len(keys)} keys):")
                     for key in sorted(keys)[:3]:
                         click.echo(f"        - {key}")
                     if len(keys) > 3:
@@ -408,16 +309,10 @@ def main(syntax, naming, params, compile, full, sv_file, en_file, frontend_dir):
 
             if en_duplicates:
                 total_duplicate_keys = sum(len(keys) for keys in en_duplicates.values())
-                click.echo(
-                    f"  {Colors.YELLOW}⚠{Colors.END} en.json: {len(en_duplicates)} duplicate value groups ({total_duplicate_keys} keys)"
-                )
+                click.echo(f"  {Colors.YELLOW}⚠{Colors.END} en.json: {len(en_duplicates)} duplicate value groups ({total_duplicate_keys} keys)")
 
-                for value, keys in sorted(
-                    en_duplicates.items(), key=lambda x: -len(x[1])
-                )[:3]:
-                    click.echo(
-                        f'     "{value[:50]}{"..." if len(value) > 50 else ""}" ({len(keys)} keys):'
-                    )
+                for value, keys in sorted(en_duplicates.items(), key=lambda x: -len(x[1]))[:3]:
+                    click.echo(f"     \"{value[:50]}{'...' if len(value) > 50 else ''}\" ({len(keys)} keys):")
                     for key in sorted(keys)[:3]:
                         click.echo(f"        - {key}")
                     if len(keys) > 3:
@@ -427,9 +322,7 @@ def main(syntax, naming, params, compile, full, sv_file, en_file, frontend_dir):
                 if len(en_duplicates) > 3:
                     click.echo(f"     ... and {len(en_duplicates) - 3} more groups")
 
-            click.echo(
-                f"  {Colors.BLUE}💡 Review if keys can be consolidated to reduce maintenance{Colors.END}"
-            )
+            click.echo(f"  {Colors.BLUE}💡 Review if keys can be consolidated to reduce maintenance{Colors.END}")
 
         print()
 
@@ -440,22 +333,14 @@ def main(syntax, naming, params, compile, full, sv_file, en_file, frontend_dir):
         param_mismatches = validate_parameter_consistency(sv_data, en_data)
 
         if not param_mismatches:
-            click.echo(
-                f"  {Colors.GREEN}{Colors.END} All parameters consistent across languages"
-            )
+            click.echo(f"  {Colors.GREEN}{Colors.END} All parameters consistent across languages")
         else:
-            click.echo(
-                f"  {Colors.RED}{Colors.END} {len(param_mismatches)} parameter mismatches found:"
-            )
+            click.echo(f"  {Colors.RED}{Colors.END} {len(param_mismatches)} parameter mismatches found:")
             for key, sv_params, en_params in param_mismatches[:5]:
                 click.echo(f"     - {key}:")
-                sv_params_str = "{" + ", ".join(sorted(sv_params)) + "}"
-                en_params_str = "{" + ", ".join(sorted(en_params)) + "}"
-                click.echo(f"       sv: {sv_params_str}")
-                click.echo(f"       en: {en_params_str}")
-                errors.append(
-                    f"Parameter mismatch in '{key}': sv{sv_params} != en{en_params}"
-                )
+                click.echo(f"       sv: {{{', '.join(sorted(sv_params))}}")
+                click.echo(f"       en: {{{', '.join(sorted(en_params))}}")
+                errors.append(f"Parameter mismatch in '{key}': sv{sv_params} != en{en_params}")
 
             if len(param_mismatches) > 5:
                 click.echo(f"     ... and {len(param_mismatches) - 5} more")
@@ -467,19 +352,15 @@ def main(syntax, naming, params, compile, full, sv_file, en_file, frontend_dir):
         click.echo(f"{Colors.BOLD}6. Paraglide Compilation Test{Colors.END}")
 
         if not frontend_path.exists():
-            click.echo(
-                f"  {Colors.YELLOW}�{Colors.END} Frontend directory not found: {frontend_path}"
-            )
-            click.echo("     Skipping compilation test")
+            click.echo(f"  {Colors.YELLOW}�{Colors.END} Frontend directory not found: {frontend_path}")
+            click.echo(f"     Skipping compilation test")
             warnings.append("Compilation test skipped (directory not found)")
         else:
-            click.echo("  Running: bun run i18n:compile...")
+            click.echo(f"  Running: bun run i18n:compile...")
             success, error_msg = test_paraglide_compilation(frontend_path)
 
             if success:
-                click.echo(
-                    f"  {Colors.GREEN}{Colors.END} Paraglide compilation successful"
-                )
+                click.echo(f"  {Colors.GREEN}{Colors.END} Paraglide compilation successful")
             else:
                 click.echo(f"  {Colors.RED}{Colors.END} Paraglide compilation failed:")
                 click.echo(f"     {error_msg}")
@@ -514,5 +395,5 @@ def main(syntax, naming, params, compile, full, sv_file, en_file, frontend_dir):
         sys.exit(0)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()
